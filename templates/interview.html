@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Interview Simulator — STARX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+  <style>
+    .interview-layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; }
+    @media (max-width: 900px) { .interview-layout { grid-template-columns: 1fr; } }
+
+    .progress-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+    .step-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+      transition: background var(--transition);
+    }
+    .step-dot.done { background: var(--gold); }
+    .step-dot.current { background: var(--red-light); box-shadow: 0 0 6px var(--red-light); }
+
+    .score-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    .score-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .score-row-label { font-size: 0.8rem; color: var(--text-secondary); }
+    .score-row-val { font-size: 0.8rem; font-weight: 700; color: var(--gold); }
+
+    .mini-bar {
+      height: 5px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .mini-bar-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--red), var(--gold));
+    }
+
+    .report-card {
+      background: linear-gradient(135deg, var(--red-dim), var(--gold-dim));
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-top: 20px;
+    }
+
+    .verdict-badge {
+      display: inline-block;
+      padding: 5px 16px;
+      border-radius: 20px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .verdict-selected { background: rgba(39,174,96,0.2); border: 1px solid #2ecc71; color: #2ecc71; }
+    .verdict-strong { background: rgba(39,174,96,0.12); border: 1px solid #27ae60; color: #27ae60; }
+    .verdict-needs { background: rgba(241,196,15,0.15); border: 1px solid #f1c40f; color: #f1c40f; }
+    .verdict-not { background: var(--red-dim); border: 1px solid var(--red-light); color: var(--red-light); }
+
+    .feedback-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-top: 8px;
+      font-size: 0.82rem;
+    }
+
+    .feedback-strength { color: #2ecc71; margin-bottom: 6px; }
+    .feedback-improve { color: #f1c40f; }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loader-ring"></div>
+    <div class="loading-text">AI Interviewer Thinking...</div>
+    <div class="loading-sub">Evaluating your response</div>
+  </div>
+  <div class="overlay-bg" id="sidebarOverlay"></div>
+
+  <div class="app-layout">
+    <!-- Sidebar (same pattern) -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-logo">SX</div>
+          <div class="brand-text">
+            <div class="brand-name">STARX</div>
+            <div class="brand-sub">AI Career Assistant</div>
+          </div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Navigation</div>
+        <a class="nav-item" href="/"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
+        <a class="nav-item" href="/notes"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>AI Notes Generator</a>
+        <a class="nav-item active" href="/interview"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Interview Simulator</a>
+        <a class="nav-item" href="/resume"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>Resume Analyzer</a>
+        <a class="nav-item" href="/planner"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Study Planner</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="api-key-widget">
+          <span class="widget-label">🔑 Gemini API Key</span>
+          <input class="api-key-input" type="password" placeholder="AIza...your-key"/>
+          <button class="btn-save-key">Save Key</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" id="hamburger">☰</button>
+          <span class="page-title">🎙️ Interview Simulator</span>
+          <span class="topbar-badge">AI Powered</span>
+        </div>
+        <div class="topbar-right">
+          <button class="theme-toggle">☀️</button>
+        </div>
+      </header>
+
+      <div class="page-content">
+
+        <!-- Setup Panel -->
+        <div id="setupPanel">
+          <h2 style="margin-bottom:6px;">Choose Your Interview Role</h2>
+          <p style="margin-bottom:24px;font-size:0.85rem;">Select the type of interview you want to practice. The AI will ask 8 progressive questions.</p>
+
+          <div class="role-grid mb-6" id="roleGrid">
+            <div class="role-chip" data-role="software_developer">
+              <span class="role-chip-icon">💻</span>
+              <div class="role-chip-label">Software Developer</div>
+            </div>
+            <div class="role-chip" data-role="aiml_engineer">
+              <span class="role-chip-icon">🤖</span>
+              <div class="role-chip-label">AI/ML Engineer</div>
+            </div>
+            <div class="role-chip" data-role="data_analyst">
+              <span class="role-chip-icon">📊</span>
+              <div class="role-chip-label">Data Analyst</div>
+            </div>
+            <div class="role-chip" data-role="web_developer">
+              <span class="role-chip-icon">🌐</span>
+              <div class="role-chip-label">Web Developer</div>
+            </div>
+            <div class="role-chip" data-role="hr_interview">
+              <span class="role-chip-icon">🤝</span>
+              <div class="role-chip-label">HR Interview</div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary" id="startBtn" disabled>
+            🚀 Start Interview
+          </button>
+        </div>
+
+        <!-- Interview Panel -->
+        <div id="interviewPanel" class="hidden">
+          <div class="interview-layout">
+
+            <!-- Left: Chat -->
+            <div>
+              <!-- Progress dots -->
+              <div class="progress-step" id="progressDots">
+                <span>Q</span>
+                <!-- dots injected by JS -->
+              </div>
+
+              <!-- Chat window -->
+              <div class="card mb-4">
+                <div class="interview-chat" id="chatWindow"></div>
+              </div>
+
+              <!-- Answer Input -->
+              <div class="card" id="answerCard">
+                <label class="form-label">Your Answer</label>
+                <textarea class="form-textarea" id="answerInput" rows="4" placeholder="Type your answer here..."></textarea>
+                <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
+                  <button class="btn btn-primary" id="submitAnswerBtn">Submit Answer →</button>
+                  <button class="btn btn-outline" id="skipBtn" style="font-size:0.8rem;padding:8px 14px;">Skip</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Right: Scores -->
+            <div>
+              <div class="card mb-4">
+                <h3 style="margin-bottom:14px;font-size:0.95rem;">📈 Current Session</h3>
+                <div id="currentScores">
+                  <p style="font-size:0.82rem;color:var(--text-muted);text-align:center;padding:20px 0;">Scores will appear after each answer</p>
+                </div>
+              </div>
+
+              <div class="card">
+                <h3 style="margin-bottom:10px;font-size:0.95rem;">💡 Last Feedback</h3>
+                <div id="lastFeedback">
+                  <p style="font-size:0.82rem;color:var(--text-muted);">Feedback will appear after you submit an answer.</p>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Final Report -->
+        <div id="reportPanel" class="hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:10px;">
+            <h2>🏆 Interview Report</h2>
+            <button class="btn btn-outline" onclick="resetInterview()" style="font-size:0.82rem;">↩ Start New Interview</button>
+          </div>
+          <div id="reportContent"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container"></div>
+  <script src="/static/main.js"></script>
+  <script>
+    let selectedRole = null;
+    let questionNum = 0;
+    let scores = [];
+
+    // Role selection
+    document.getElementById('roleGrid').addEventListener('click', e => {
+      const chip = e.target.closest('.role-chip');
+      if (!chip) return;
+      document.querySelectorAll('.role-chip').forEach(c => c.classList.remove('selected'));
+      chip.classList.add('selected');
+      selectedRole = chip.dataset.role;
+      document.getElementById('startBtn').disabled = false;
+    });
+
+    // Start interview
+    document.getElementById('startBtn').addEventListener('click', async () => {
+      if (!selectedRole) return;
+      Loader.show('Starting Interview...', 'AI is preparing your first question');
+      try {
+        const res = await fetch('/api/interview/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: selectedRole })
+        });
+        const data = await res.json();
+        if (!data.success) { Toast.show(data.error || 'Failed to start', 'error'); return; }
+
+        questionNum = 1;
+        scores = [];
+        document.getElementById('setupPanel').classList.add('hidden');
+        document.getElementById('interviewPanel').classList.remove('hidden');
+        document.getElementById('chatWindow').innerHTML = '';
+        updateProgressDots(1);
+        addAIBubble(data.data.question, 1);
+
+      } catch (e) {
+        Toast.show('Error: ' + e.message, 'error');
+      } finally {
+        Loader.hide();
+      }
+    });
+
+    // Submit answer
+    document.getElementById('submitAnswerBtn').addEventListener('click', submitAnswer);
+    document.getElementById('answerInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter' && e.ctrlKey) submitAnswer();
+    });
+
+    document.getElementById('skipBtn').addEventListener('click', () => {
+      document.getElementById('answerInput').value = "I'd like to skip this question.";
+      submitAnswer();
+    });
+
+    async function submitAnswer() {
+      const answer = document.getElementById('answerInput').value.trim();
+      if (!answer) { Toast.show('Please write an answer first', 'error'); return; }
+
+      addUserBubble(answer);
+      document.getElementById('answerInput').value = '';
+      document.getElementById('submitAnswerBtn').disabled = true;
+
+      Loader.show('Evaluating Answer...', 'AI is analyzing your response');
+      try {
+        const res = await fetch('/api/interview/answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ answer })
+        });
+        const data = await res.json();
+        if (!data.success) { Toast.show(data.error || 'Evaluation failed', 'error'); return; }
+
+        const ev = data.evaluation;
+        scores.push(ev);
+        updateScorePanel(ev);
+        updateFeedbackPanel(ev);
+
+        if (data.interview_complete) {
+          await showFinalReport(data.final_report);
+        } else {
+          questionNum++;
+          updateProgressDots(questionNum);
+          addAIBubble(data.next_question.question, questionNum);
+        }
+
+      } catch (e) {
+        Toast.show('Error: ' + e.message, 'error');
+      } finally {
+        Loader.hide();
+        document.getElementById('submitAnswerBtn').disabled = false;
+      }
+    }
+
+    function addAIBubble(text, qNum) {
+      const chat = document.getElementById('chatWindow');
+      chat.innerHTML += `
+        <div class="chat-bubble ai">
+          <div class="chat-label">🤖 AI Interviewer · Q${qNum}/8</div>
+          ${text}
+        </div>
+      `;
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function addUserBubble(text) {
+      const chat = document.getElementById('chatWindow');
+      chat.innerHTML += `
+        <div class="chat-bubble user">
+          <div class="chat-label">👤 You</div>
+          ${text}
+        </div>
+      `;
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function updateProgressDots(current) {
+      const container = document.getElementById('progressDots');
+      let html = '<span style="font-size:0.75rem;color:var(--text-muted);margin-right:4px;">Progress:</span>';
+      for (let i = 1; i <= 8; i++) {
+        let cls = i < current ? 'done' : (i === current ? 'current' : '');
+        html += `<div class="step-dot ${cls}" title="Q${i}"></div>`;
+      }
+      html += `<span style="margin-left:8px;font-size:0.75rem;color:var(--text-muted);">Q${current}/8</span>`;
+      container.innerHTML = html;
+    }
+
+    function updateScorePanel(ev) {
+      const avg = scores.length > 0
+        ? Math.round(scores.reduce((s,e) => s + (e.overall_score||0), 0) / scores.length)
+        : 0;
+
+      document.getElementById('currentScores').innerHTML = `
+        <div style="margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;">
+            <span style="font-size:0.78rem;color:var(--text-muted);">Session Average</span>
+            <span style="font-size:0.78rem;font-weight:700;color:var(--gold);">${avg}/100</span>
+          </div>
+          <div class="progress-bar-wrap"><div class="progress-bar-fill" style="width:${avg}%"></div></div>
+        </div>
+
+        ${buildScoreRow('Confidence', ev.confidence_score)}
+        ${buildScoreRow('Communication', ev.communication_score)}
+        ${buildScoreRow('Technical', ev.technical_score)}
+        ${buildScoreRow('Overall', ev.overall_score)}
+      `;
+    }
+
+    function buildScoreRow(label, val) {
+      const colors = ['#e74c3c', '#e67e22', '#f1c40f', '#2ecc71'];
+      const color = val >= 80 ? colors[3] : val >= 60 ? colors[2] : val >= 40 ? colors[1] : colors[0];
+      return `
+        <div class="score-row">
+          <span class="score-row-label">${label}</span>
+          <span class="score-row-val" style="color:${color}">${val}</span>
+        </div>
+        <div class="mini-bar"><div class="mini-bar-fill" style="width:${val}%;background:${color}"></div></div>
+      `;
+    }
+
+    function updateFeedbackPanel(ev) {
+      document.getElementById('lastFeedback').innerHTML = `
+        <div class="feedback-box">
+          <div class="feedback-strength">✅ ${ev.strength || '—'}</div>
+          <div class="feedback-improve">💡 ${ev.improvement || '—'}</div>
+        </div>
+        ${ev.model_answer_hint ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;padding:8px 12px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;"><strong>Hint:</strong> ${ev.model_answer_hint}</div>` : ''}
+      `;
+    }
+
+    async function showFinalReport(report) {
+      document.getElementById('interviewPanel').classList.add('hidden');
+      document.getElementById('reportPanel').classList.remove('hidden');
+
+      const verdictClass = {
+        'Selected': 'verdict-selected',
+        'Strong Candidate': 'verdict-strong',
+        'Needs Improvement': 'verdict-needs',
+        'Not Recommended': 'verdict-not'
+      }[report.verdict] || 'verdict-needs';
+
+      document.getElementById('reportContent').innerHTML = `
+        <div class="report-card">
+          <div class="verdict-badge ${verdictClass}">${report.verdict}</div>
+          <p style="font-size:0.9rem;margin-bottom:20px;color:var(--text-secondary);line-height:1.7;">${report.executive_summary}</p>
+
+          <div class="grid-4 mb-6">
+            <div style="text-align:center;">
+              <div style="font-size:2rem;font-weight:700;color:var(--gold);font-family:var(--font-display);">${Math.round(report.overall_score)}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Overall</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:2rem;font-weight:700;color:#3498db;font-family:var(--font-display);">${Math.round(report.confidence_score)}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Confidence</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:2rem;font-weight:700;color:#2ecc71;font-family:var(--font-display);">${Math.round(report.communication_score)}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Communication</div>
+            </div>
+            <div style="text-align:center;">
+              <div style="font-size:2rem;font-weight:700;color:var(--red-light);font-family:var(--font-display);">${Math.round(report.technical_score)}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">Technical</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-3 mt-6">
+          <div class="card">
+            <h3 style="font-size:0.88rem;margin-bottom:12px;color:#2ecc71;">💪 Top Strengths</h3>
+            ${(report.top_strengths||[]).map(s=>`<div style="font-size:0.82rem;color:var(--text-secondary);padding:6px 0;border-bottom:1px solid var(--border);">• ${s}</div>`).join('')}
+          </div>
+          <div class="card">
+            <h3 style="font-size:0.88rem;margin-bottom:12px;color:#f1c40f;">🎯 Improvement Areas</h3>
+            ${(report.improvement_areas||[]).map(a=>`<div style="font-size:0.82rem;color:var(--text-secondary);padding:6px 0;border-bottom:1px solid var(--border);">• ${a}</div>`).join('')}
+          </div>
+          <div class="card">
+            <h3 style="font-size:0.88rem;margin-bottom:12px;color:var(--gold);">📚 Recommended Topics</h3>
+            ${(report.recommended_resources||[]).map(r=>`<div style="font-size:0.82rem;color:var(--text-secondary);padding:6px 0;border-bottom:1px solid var(--border);">• ${r}</div>`).join('')}
+          </div>
+        </div>
+
+        <div class="card mt-4">
+          <h3 style="font-size:0.88rem;margin-bottom:8px;">🚀 Next Steps</h3>
+          <p style="font-size:0.85rem;">${report.next_steps}</p>
+        </div>
+      `;
+
+      document.getElementById('reportPanel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function resetInterview() {
+      document.getElementById('reportPanel').classList.add('hidden');
+      document.getElementById('setupPanel').classList.remove('hidden');
+      selectedRole = null;
+      questionNum = 0;
+      scores = [];
+      document.querySelectorAll('.role-chip').forEach(c => c.classList.remove('selected'));
+      document.getElementById('startBtn').disabled = true;
+    }
+  </script>
+</body>
+</html>

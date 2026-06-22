@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Notes Generator — STARX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+  <style>
+    .notes-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+    .tab-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all var(--transition);
+      font-family: var(--font-body);
+    }
+    .tab-btn:hover, .tab-btn.active {
+      background: var(--red-dim);
+      border-color: rgba(192,57,43,0.4);
+      color: var(--text-primary);
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; animation: fadeUp 0.3s ease; }
+
+    .summary-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 22px;
+      line-height: 1.75;
+      font-size: 0.9rem;
+      color: var(--text-secondary);
+      white-space: pre-wrap;
+    }
+
+    .revision-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .revision-list li {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 11px 14px;
+      font-size: 0.86rem;
+      color: var(--text-secondary);
+    }
+
+    .revision-list li::before {
+      content: '→';
+      color: var(--gold);
+      flex-shrink: 0;
+      font-weight: 700;
+    }
+
+    .file-info-bar {
+      background: var(--gold-dim);
+      border: 1px solid var(--border-accent);
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      font-size: 0.82rem;
+      color: var(--gold-light);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loader-ring"></div>
+    <div class="loading-text">Generating AI Notes...</div>
+    <div class="loading-sub">Analyzing your document with Gemini</div>
+  </div>
+
+  <div class="overlay-bg" id="sidebarOverlay"></div>
+
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-logo">SX</div>
+          <div class="brand-text">
+            <div class="brand-name">STARX</div>
+            <div class="brand-sub">AI Career Assistant</div>
+          </div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Navigation</div>
+        <a class="nav-item" href="/"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
+        <a class="nav-item active" href="/notes"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>AI Notes Generator</a>
+        <a class="nav-item" href="/interview"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Interview Simulator</a>
+        <a class="nav-item" href="/resume"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>Resume Analyzer</a>
+        <a class="nav-item" href="/planner"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Study Planner</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="api-key-widget">
+          <span class="widget-label">🔑 Gemini API Key</span>
+          <input class="api-key-input" type="password" placeholder="AIza...your-key"/>
+          <button class="btn-save-key">Save Key</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" id="hamburger">☰</button>
+          <span class="page-title">📄 AI Notes Generator</span>
+          <span class="topbar-badge">Upload &amp; Learn</span>
+        </div>
+        <div class="topbar-right">
+          <button class="theme-toggle">☀️</button>
+        </div>
+      </header>
+
+      <div class="page-content">
+
+        <!-- Upload Section -->
+        <div class="card mb-6" id="uploadSection">
+          <h2 style="margin-bottom:6px;">Upload Your Document</h2>
+          <p style="margin-bottom:20px;font-size:0.85rem;">Supports PDF, DOCX, and PPTX files up to 10MB</p>
+
+          <div class="upload-zone" id="uploadZone">
+            <input type="file" id="fileInput" accept=".pdf,.docx,.pptx,.doc"/>
+            <span class="upload-icon">📂</span>
+            <h3>Drag &amp; drop your file here</h3>
+            <p>or click to browse — PDF, DOCX, PPTX supported</p>
+          </div>
+
+          <div id="filePreview" class="file-info-bar hidden">
+            <span>📎</span>
+            <span id="fileName">No file selected</span>
+            <span id="fileSize" style="margin-left:auto;opacity:0.7;"></span>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="generateBtn" disabled>
+              ✨ Generate AI Notes
+            </button>
+            <button class="btn btn-outline" id="clearBtn">Clear</button>
+          </div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+            <h2>📋 Generated Notes</h2>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline" style="font-size:0.78rem;padding:7px 14px;" onclick="printNotes()">🖨️ Print</button>
+              <button class="btn btn-outline" style="font-size:0.78rem;padding:7px 14px;" onclick="copyAllNotes()">📋 Copy All</button>
+            </div>
+          </div>
+
+          <!-- Tabs -->
+          <div class="notes-tabs" id="notesTabs">
+            <button class="tab-btn active" data-tab="summary">📝 Summary</button>
+            <button class="tab-btn" data-tab="concepts">🔑 Key Concepts</button>
+            <button class="tab-btn" data-tab="two-mark">2-Mark Q&amp;A</button>
+            <button class="tab-btn" data-tab="five-mark">5-Mark Q&amp;A</button>
+            <button class="tab-btn" data-tab="ten-mark">10-Mark Q&amp;A</button>
+            <button class="tab-btn" data-tab="viva">🎤 Viva</button>
+            <button class="tab-btn" data-tab="mcq">📊 MCQs</button>
+            <button class="tab-btn" data-tab="revision">⚡ Quick Revision</button>
+          </div>
+
+          <!-- Summary Tab -->
+          <div class="tab-panel active" id="tab-summary">
+            <div class="section-header">
+              <div class="section-icon gold">📝</div>
+              <div class="section-title">Summary</div>
+            </div>
+            <div style="margin-bottom:16px;">
+              <div style="font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Quick Overview</div>
+              <div class="summary-box" id="shortSummary"></div>
+            </div>
+            <div>
+              <div style="font-size:0.72rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Detailed Summary</div>
+              <div class="summary-box" id="detailedSummary"></div>
+            </div>
+          </div>
+
+          <!-- Key Concepts Tab -->
+          <div class="tab-panel" id="tab-concepts">
+            <div class="section-header">
+              <div class="section-icon gold">🔑</div>
+              <div class="section-title">Key Concepts</div>
+              <span class="section-count" id="conceptCount">0</span>
+            </div>
+            <div class="tags-wrap" id="conceptsList"></div>
+          </div>
+
+          <!-- 2-Mark Tab -->
+          <div class="tab-panel" id="tab-two-mark">
+            <div class="section-header">
+              <div class="section-icon red">✏️</div>
+              <div class="section-title">2-Mark Questions &amp; Answers</div>
+              <span class="section-count" id="twoMarkCount">0</span>
+            </div>
+            <div id="twoMarkList"></div>
+          </div>
+
+          <!-- 5-Mark Tab -->
+          <div class="tab-panel" id="tab-five-mark">
+            <div class="section-header">
+              <div class="section-icon red">📝</div>
+              <div class="section-title">5-Mark Questions &amp; Answers</div>
+              <span class="section-count" id="fiveMarkCount">0</span>
+            </div>
+            <div id="fiveMarkList"></div>
+          </div>
+
+          <!-- 10-Mark Tab -->
+          <div class="tab-panel" id="tab-ten-mark">
+            <div class="section-header">
+              <div class="section-icon red">📖</div>
+              <div class="section-title">10-Mark Questions &amp; Answers</div>
+              <span class="section-count" id="tenMarkCount">0</span>
+            </div>
+            <div id="tenMarkList"></div>
+          </div>
+
+          <!-- Viva Tab -->
+          <div class="tab-panel" id="tab-viva">
+            <div class="section-header">
+              <div class="section-icon gold">🎤</div>
+              <div class="section-title">Viva Questions</div>
+              <span class="section-count" id="vivaCount">0</span>
+            </div>
+            <div id="vivaList"></div>
+          </div>
+
+          <!-- MCQ Tab -->
+          <div class="tab-panel" id="tab-mcq">
+            <div class="section-header">
+              <div class="section-icon red">📊</div>
+              <div class="section-title">Multiple Choice Questions</div>
+              <span class="section-count" id="mcqCount">0</span>
+            </div>
+            <div id="mcqList"></div>
+          </div>
+
+          <!-- Quick Revision Tab -->
+          <div class="tab-panel" id="tab-revision">
+            <div class="section-header">
+              <div class="section-icon gold">⚡</div>
+              <div class="section-title">Quick Revision Notes</div>
+              <span class="section-count" id="revisionCount">0</span>
+            </div>
+            <ul class="revision-list" id="revisionList"></ul>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container"></div>
+  <script src="/static/main.js"></script>
+  <script>
+    let notesData = null;
+
+    // File input handling
+    const fileInput = document.getElementById('fileInput');
+    const generateBtn = document.getElementById('generateBtn');
+    const filePreview = document.getElementById('filePreview');
+    const fileNameEl = document.getElementById('fileName');
+    const fileSizeEl = document.getElementById('fileSize');
+    const uploadZone = document.getElementById('uploadZone');
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) {
+        fileNameEl.textContent = file.name;
+        fileSizeEl.textContent = (file.size / 1024).toFixed(1) + ' KB';
+        filePreview.classList.remove('hidden');
+        generateBtn.disabled = false;
+      }
+    });
+
+    // Drag and drop
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        fileInput.dispatchEvent(new Event('change'));
+      }
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      fileInput.value = '';
+      filePreview.classList.add('hidden');
+      generateBtn.disabled = true;
+      document.getElementById('resultsSection').classList.add('hidden');
+      notesData = null;
+    });
+
+    generateBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) { Toast.show('Please select a file first', 'error'); return; }
+
+      Loader.show('Generating AI Notes...', 'Analyzing with Google Gemini — please wait');
+      generateBtn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/notes/generate', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!data.success) {
+          Toast.show(data.error || 'Generation failed', 'error');
+          return;
+        }
+
+        notesData = data.data;
+        renderNotes(notesData);
+        Toast.show(`Notes generated! (${data.word_count} words processed)`, 'success');
+        document.getElementById('resultsSection').classList.remove('hidden');
+        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+
+      } catch (e) {
+        Toast.show('Network error: ' + e.message, 'error');
+      } finally {
+        Loader.hide();
+        generateBtn.disabled = false;
+      }
+    });
+
+    // Render notes into DOM
+    function renderNotes(d) {
+      document.getElementById('shortSummary').textContent = d.short_summary || '—';
+      document.getElementById('detailedSummary').textContent = d.detailed_summary || '—';
+
+      // Concepts
+      const concepts = d.key_concepts || [];
+      document.getElementById('conceptCount').textContent = concepts.length;
+      document.getElementById('conceptsList').innerHTML = concepts.map(c =>
+        `<span class="tag">${c}</span>`
+      ).join('');
+
+      // Q&A renderer helper
+      function renderQA(list, containerId, countId) {
+        document.getElementById(countId).textContent = list.length;
+        document.getElementById(containerId).innerHTML = list.map((item, i) => `
+          <div class="qa-item">
+            <div class="qa-question">
+              <span class="qa-q-badge">Q${i+1}</span>
+              ${item.question}
+            </div>
+            <div class="qa-answer">${item.answer}</div>
+          </div>
+        `).join('');
+      }
+
+      renderQA(d.two_mark_questions || [], 'twoMarkList', 'twoMarkCount');
+      renderQA(d.five_mark_questions || [], 'fiveMarkList', 'fiveMarkCount');
+      renderQA(d.ten_mark_questions || [], 'tenMarkList', 'tenMarkCount');
+      renderQA(d.viva_questions || [], 'vivaList', 'vivaCount');
+
+      // MCQs
+      const mcqs = d.mcqs || [];
+      document.getElementById('mcqCount').textContent = mcqs.length;
+      document.getElementById('mcqList').innerHTML = mcqs.map((m, i) => `
+        <div class="mcq-item">
+          <div class="mcq-question">Q${i+1}. ${m.question}</div>
+          <div class="mcq-options">
+            ${(m.options || []).map(o => `
+              <div class="mcq-option ${o.startsWith(m.answer) ? 'correct' : ''}">
+                ${o} ${o.startsWith(m.answer) ? '✓' : ''}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `).join('');
+
+      // Quick revision
+      const rev = d.quick_revision || [];
+      document.getElementById('revisionCount').textContent = rev.length;
+      document.getElementById('revisionList').innerHTML = rev.map(r => `<li>${r}</li>`).join('');
+    }
+
+    // Tab switching
+    document.getElementById('notesTabs').addEventListener('click', e => {
+      if (!e.target.classList.contains('tab-btn')) return;
+      const tab = e.target.dataset.tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+      e.target.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    });
+
+    function printNotes() { window.print(); }
+
+    function copyAllNotes() {
+      if (!notesData) return;
+      const text = `STARX AI Notes\n\nSUMMARY:\n${notesData.short_summary}\n\nKEY CONCEPTS:\n${(notesData.key_concepts||[]).join(', ')}\n\nQUICK REVISION:\n${(notesData.quick_revision||[]).map((r,i)=>`${i+1}. ${r}`).join('\n')}`;
+      copyText(text, 'Notes copied to clipboard!');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Resume Analyzer — STARX</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="{{ url_for('static', filename='main.css') }}">
+  <style>
+    .ats-gauge {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 28px 0 20px;
+    }
+
+    .gauge-ring {
+      position: relative;
+      width: 160px; height: 160px;
+      margin-bottom: 16px;
+    }
+
+    .gauge-ring svg { transform: rotate(-120deg); }
+
+    .gauge-value {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+    }
+
+    .gauge-num {
+      font-family: var(--font-display);
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+
+    .gauge-label {
+      font-size: 0.72rem;
+      color: var(--gold);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .section-score-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      font-size: 0.82rem;
+    }
+
+    .section-score-name { min-width: 130px; color: var(--text-secondary); }
+
+    .section-score-bar {
+      flex: 1;
+      height: 6px;
+      background: var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .section-score-fill {
+      height: 100%;
+      border-radius: 4px;
+      background: linear-gradient(90deg, var(--red), var(--gold));
+    }
+
+    .section-score-val { min-width: 35px; text-align: right; color: var(--gold); font-weight: 700; }
+
+    .improvement-item {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-size: 0.83rem;
+    }
+
+    .priority-badge {
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.68rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .priority-High { background: rgba(192,57,43,0.2); color: var(--red-light); border: 1px solid rgba(192,57,43,0.3); }
+    .priority-Medium { background: rgba(241,196,15,0.15); color: #f1c40f; border: 1px solid rgba(241,196,15,0.3); }
+    .priority-Low { background: rgba(39,174,96,0.12); color: #2ecc71; border: 1px solid rgba(39,174,96,0.25); }
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loader-ring"></div>
+    <div class="loading-text">Analyzing Resume...</div>
+    <div class="loading-sub">Checking ATS compatibility &amp; skills</div>
+  </div>
+  <div class="overlay-bg" id="sidebarOverlay"></div>
+
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-logo">SX</div>
+          <div class="brand-text">
+            <div class="brand-name">STARX</div>
+            <div class="brand-sub">AI Career Assistant</div>
+          </div>
+        </div>
+      </div>
+      <nav class="sidebar-nav">
+        <div class="nav-section-label">Navigation</div>
+        <a class="nav-item" href="/"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>Dashboard</a>
+        <a class="nav-item" href="/notes"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>AI Notes Generator</a>
+        <a class="nav-item" href="/interview"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Interview Simulator</a>
+        <a class="nav-item active" href="/resume"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>Resume Analyzer</a>
+        <a class="nav-item" href="/planner"><svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>Study Planner</a>
+      </nav>
+      <div class="sidebar-footer">
+        <div class="api-key-widget">
+          <span class="widget-label">🔑 Gemini API Key</span>
+          <input class="api-key-input" type="password" placeholder="AIza...your-key"/>
+          <button class="btn-save-key">Save Key</button>
+        </div>
+      </div>
+    </aside>
+
+    <div class="main-content">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="hamburger" id="hamburger">☰</button>
+          <span class="page-title">📊 Resume Analyzer</span>
+          <span class="topbar-badge">ATS Ready</span>
+        </div>
+        <div class="topbar-right">
+          <button class="theme-toggle">☀️</button>
+        </div>
+      </header>
+
+      <div class="page-content">
+
+        <!-- Upload -->
+        <div class="card mb-6" id="uploadSection">
+          <h2 style="margin-bottom:6px;">Upload Your Resume</h2>
+          <p style="margin-bottom:20px;font-size:0.85rem;">Supports PDF and DOCX formats. Your resume is never stored permanently.</p>
+
+          <div class="upload-zone" id="uploadZone">
+            <input type="file" id="fileInput" accept=".pdf,.docx,.doc"/>
+            <span class="upload-icon">📄</span>
+            <h3>Drop your resume here</h3>
+            <p>PDF or DOCX — up to 10MB</p>
+          </div>
+
+          <div id="filePreview" class="file-info-bar hidden" style="margin-top:14px;margin-bottom:0;">
+            <span>📎</span>
+            <span id="fileName">No file selected</span>
+            <span id="fileSize" style="margin-left:auto;opacity:0.7;"></span>
+          </div>
+
+          <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap;">
+            <button class="btn btn-primary" id="analyzeBtn" disabled>📊 Analyze Resume</button>
+            <button class="btn btn-outline" id="clearBtn">Clear</button>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="resultsSection" class="hidden">
+
+          <!-- Top row: ATS gauge + section scores -->
+          <div class="grid-2 mb-6">
+
+            <!-- ATS Score -->
+            <div class="card card-gold">
+              <div class="ats-gauge">
+                <div class="gauge-ring">
+                  <svg width="160" height="160" viewBox="0 0 160 160">
+                    <circle cx="80" cy="80" r="65" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="10" stroke-dasharray="272 340" stroke-linecap="round"/>
+                    <circle cx="80" cy="80" r="65" fill="none" stroke="url(#atsGrad)" stroke-width="10" stroke-dasharray="0 340" stroke-linecap="round" id="atsArc"/>
+                    <defs>
+                      <linearGradient id="atsGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stop-color="#c0392b"/>
+                        <stop offset="100%" stop-color="#c4a03c"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <div class="gauge-value">
+                    <div class="gauge-num" id="atsScore">—</div>
+                    <div class="gauge-label">ATS Score</div>
+                  </div>
+                </div>
+                <div id="candidateInfo" style="text-align:center;">
+                  <div id="candidateName" style="font-family:var(--font-display);font-size:1.05rem;font-weight:600;"></div>
+                  <div id="targetRole" style="font-size:0.78rem;color:var(--gold);margin-top:3px;"></div>
+                  <div id="expLevel" style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;"></div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Section Scores -->
+            <div class="card">
+              <h3 style="font-size:0.9rem;margin-bottom:16px;">📋 Section Scores</h3>
+              <div id="sectionScores"></div>
+            </div>
+
+          </div>
+
+          <!-- Overview -->
+          <div class="card mb-4">
+            <div class="section-header">
+              <div class="section-icon gold">💬</div>
+              <div class="section-title">Overall Impression</div>
+            </div>
+            <p style="font-size:0.88rem;line-height:1.75;" id="overallImpression"></p>
+          </div>
+
+          <!-- Strengths + Weaknesses -->
+          <div class="grid-2 mb-4">
+            <div class="card">
+              <div class="section-header">
+                <div class="section-icon gold">💪</div>
+                <div class="section-title">Strengths</div>
+              </div>
+              <div id="strengthsList"></div>
+            </div>
+            <div class="card">
+              <div class="section-header">
+                <div class="section-icon red">⚠️</div>
+                <div class="section-title">Weaknesses</div>
+              </div>
+              <div id="weaknessesList"></div>
+            </div>
+          </div>
+
+          <!-- Skills -->
+          <div class="grid-2 mb-4">
+            <div class="card">
+              <div class="section-header">
+                <div class="section-icon gold">✅</div>
+                <div class="section-title">Present Skills</div>
+              </div>
+              <div class="tags-wrap" id="presentSkills"></div>
+            </div>
+            <div class="card">
+              <div class="section-header">
+                <div class="section-icon red">❌</div>
+                <div class="section-title">Missing Skills</div>
+              </div>
+              <div class="tags-wrap" id="missingSkills"></div>
+            </div>
+          </div>
+
+          <!-- ATS Issues -->
+          <div class="card mb-4">
+            <div class="section-header">
+              <div class="section-icon red">🤖</div>
+              <div class="section-title">ATS Issues Found</div>
+            </div>
+            <div id="atsIssues"></div>
+          </div>
+
+          <!-- Improvements -->
+          <div class="card mb-4">
+            <div class="section-header">
+              <div class="section-icon gold">🚀</div>
+              <div class="section-title">Improvement Actions</div>
+            </div>
+            <div id="improvementsList"></div>
+          </div>
+
+          <!-- Recommended Roles -->
+          <div class="card">
+            <div class="section-header">
+              <div class="section-icon gold">🎯</div>
+              <div class="section-title">Recommended Roles</div>
+            </div>
+            <div class="tags-wrap" id="recommendedRoles"></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container"></div>
+  <script src="/static/main.js"></script>
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const analyzeBtn = document.getElementById('analyzeBtn');
+    const filePreview = document.getElementById('filePreview');
+    const uploadZone = document.getElementById('uploadZone');
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files[0];
+      if (file) {
+        document.getElementById('fileName').textContent = file.name;
+        document.getElementById('fileSize').textContent = (file.size/1024).toFixed(1) + ' KB';
+        filePreview.classList.remove('hidden');
+        analyzeBtn.disabled = false;
+      }
+    });
+
+    uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+    uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+    uploadZone.addEventListener('drop', e => {
+      e.preventDefault();
+      uploadZone.classList.remove('drag-over');
+      const file = e.dataTransfer.files[0];
+      if (file) {
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        fileInput.files = dt.files;
+        fileInput.dispatchEvent(new Event('change'));
+      }
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      fileInput.value = '';
+      filePreview.classList.add('hidden');
+      analyzeBtn.disabled = true;
+      document.getElementById('resultsSection').classList.add('hidden');
+    });
+
+    analyzeBtn.addEventListener('click', async () => {
+      const file = fileInput.files[0];
+      if (!file) return;
+
+      Loader.show('Analyzing Resume...', 'Checking ATS score, skills, and improvements');
+      analyzeBtn.disabled = true;
+
+      try {
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch('/api/resume/analyze', { method: 'POST', body: formData });
+        const data = await res.json();
+
+        if (!data.success) { Toast.show(data.error || 'Analysis failed', 'error'); return; }
+
+        renderReport(data.data);
+        document.getElementById('resultsSection').classList.remove('hidden');
+        document.getElementById('resultsSection').scrollIntoView({ behavior: 'smooth' });
+        Toast.show('Resume analyzed successfully!', 'success');
+
+      } catch (e) {
+        Toast.show('Error: ' + e.message, 'error');
+      } finally {
+        Loader.hide();
+        analyzeBtn.disabled = false;
+      }
+    });
+
+    function renderReport(d) {
+      // ATS Gauge animation
+      const score = d.ats_score || 0;
+      document.getElementById('atsScore').textContent = score;
+      const maxArc = 272; // ~240deg arc
+      const fill = (score / 100) * maxArc;
+      const arc = document.getElementById('atsArc');
+      arc.setAttribute('stroke-dasharray', `0 340`);
+      setTimeout(() => {
+        arc.style.transition = 'stroke-dasharray 1.2s ease';
+        arc.setAttribute('stroke-dasharray', `${fill} 340`);
+      }, 100);
+
+      // Candidate info
+      document.getElementById('candidateName').textContent = d.candidate_name || '';
+      document.getElementById('targetRole').textContent = d.target_role ? '🎯 ' + d.target_role : '';
+      document.getElementById('expLevel').textContent = d.experience_level || '';
+
+      // Overall impression
+      document.getElementById('overallImpression').textContent = d.overall_impression || '';
+
+      // Section scores
+      const ss = d.section_scores || {};
+      const sections = [
+        ['Contact Info', ss.contact_info],
+        ['Work Experience', ss.work_experience],
+        ['Education', ss.education],
+        ['Skills', ss.skills],
+        ['Formatting', ss.formatting]
+      ];
+      document.getElementById('sectionScores').innerHTML = sections.map(([name, val]) => `
+        <div class="section-score-row">
+          <span class="section-score-name">${name}</span>
+          <div class="section-score-bar"><div class="section-score-fill" style="width:${val||0}%"></div></div>
+          <span class="section-score-val">${val||0}</span>
+        </div>
+      `).join('');
+
+      // Strengths
+      document.getElementById('strengthsList').innerHTML = (d.strengths||[]).map(s => `
+        <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="font-size:0.84rem;font-weight:600;color:var(--text-primary);margin-bottom:2px;">✅ ${s.title}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">${s.description}</div>
+        </div>
+      `).join('');
+
+      // Weaknesses
+      document.getElementById('weaknessesList').innerHTML = (d.weaknesses||[]).map(w => `
+        <div style="padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="font-size:0.84rem;font-weight:600;color:var(--text-primary);margin-bottom:2px;">⚠️ ${w.title}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">${w.description}</div>
+        </div>
+      `).join('');
+
+      // Skills
+      document.getElementById('presentSkills').innerHTML = (d.present_skills||[]).map(s => `<span class="tag">${s}</span>`).join('');
+      document.getElementById('missingSkills').innerHTML = (d.missing_skills||[]).map(s => `<span class="tag tag-red">${s}</span>`).join('');
+
+      // ATS Issues
+      document.getElementById('atsIssues').innerHTML = (d.ats_issues||[]).map(issue => `
+        <div style="display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);font-size:0.83rem;color:var(--text-secondary);">
+          <span style="color:var(--red-light);flex-shrink:0;">⚠</span>${issue}
+        </div>
+      `).join('');
+
+      // Improvements
+      document.getElementById('improvementsList').innerHTML = (d.improvements||[]).map(imp => `
+        <div class="improvement-item">
+          <span class="priority-badge priority-${imp.priority}">${imp.priority}</span>
+          <span style="color:var(--text-secondary);">${imp.action}</span>
+        </div>
+      `).join('');
+
+      // Recommended Roles
+      document.getElementById('recommendedRoles').innerHTML = (d.recommended_roles||[]).map(r => `<span class="tag">${r}</span>`).join('');
+    }
+  </script>
+</body>
+</html>
